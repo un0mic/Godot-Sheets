@@ -2,6 +2,7 @@ tool
 extends Node
 
 var __dirname = get_script().resource_path.get_base_dir()
+var enabled = false
 
 signal auth_code_granted(code)
 signal access_token_granted(token)
@@ -299,6 +300,8 @@ func save_node_from_dict(filename, dict):
 	ResourceSaver.save(filename,packedScene)
 
 func _ready():
+	if(enabled == false):
+		return
 	set_process(false)
 	connect("auth_code_granted",self,"handle_auth_code")
 	
