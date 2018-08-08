@@ -1,0 +1,35 @@
+[gd_scene load_steps=2 format=2]
+
+[sub_resource type="GDScript" id=1]
+
+script/source = "extends Node
+export var Sheet1:Dictionary
+export var Sheet2:Dictionary
+export var Hidden_sheet:Dictionary
+"
+
+[node name="" type="Node"]
+script = SubResource( 1 )
+Sheet1 = {
+"dennis": {
+"var1": "quick"
+},
+"obj1": {
+"test": "hey",
+"var1": "Amulya",
+"var2": Vector2( 0, 1 )
+},
+"obj2": {
+"var1": 3,
+"var2": true
+}
+}
+Sheet2 = {
+"obj": {
+"test": "A"
+}
+}
+Hidden_sheet = {
+
+}
+
