@@ -10,7 +10,7 @@ signal has_access(token)
 signal access_revoked()
 signal json_handled(json)
 signal log_msg(message)
-signal sheet_loaded()
+signal sheet_loaded(filename)
 
 var config_path = "user://godot_sheets.cfg"
 var config = ConfigFile.new()
@@ -95,11 +95,11 @@ func request_refresh_token():
 
 func revoke_access():
 	var refresh_token = config.get_value("google.api","refresh_token", false)
-	
+
 	config.set_value("google.api","refresh_token",null)
 	config.set_value("google.api","auth_code",null)
 	config.save(config_path)
-	
+
 	var token = access_token
 	if(refresh_token):
 		token = refresh_token
@@ -139,10 +139,10 @@ func handle_auth_code(code):
 
 func handle_access_token(result,response_code,header,body,http):
 	var data = JSON.parse(body.get_string_from_utf8()).result
-	
+
 	if(data):
 		if(data.has("error")):
-			
+
 			emit_signal("log_msg",data.error_description)
 			revoke_access()
 			return
@@ -150,10 +150,10 @@ func handle_access_token(result,response_code,header,body,http):
 		if(data.has("access_token")):
 			access_token = data.access_token
 			access_token_expiration = data.expires_in*1000 + OS.get_ticks_msec()
-			
+
 			config.set_value("google.api","refresh_token",access_token)
 			config.save(config_path)
-			
+
 			emit_signal("log_msg","Token Granted")
 			emit_signal("has_access",access_token)
 		else:
@@ -188,9 +188,9 @@ func get_sheet_values(sheet_id: String, cell_ranges: Array):
 	http.request("https://sheets.googleapis.com/v4/spreadsheets/"+sheet_id+"/values:batchGet"+query,headers,true,HTTPClient.METHOD_GET,"")
 
 func handle_json(result,response_code,header,body,http,cache_key = false):
-	
+
 	var data = JSON.parse(body.get_string_from_utf8()).result
-	
+
 	emit_signal("log_msg","Data Recieved: "+str(body.size())+"bytes")
 	#emit_signal("log_msg",JSON.print(data,"\t"))
 	if(data.has("error")):
@@ -220,7 +220,7 @@ func get_drive_sheets():
 	add_child(http)
 	http.connect("request_completed",self,"handle_json",[http,cache_key],CONNECT_ONESHOT)
 	http.request("https://www.googleapis.com/drive/v2/files?"+query,headers,true,HTTPClient.METHOD_GET,"")
-	
+
 
 func get_all_sheet_values(sheet_id: String):
 	emit_signal("log_msg","Getting Sheet with id: "+sheet_id)
@@ -230,7 +230,7 @@ func get_all_sheet_values(sheet_id: String):
 	var cell_range = []
 	if(sheet.has("error")):
 		return
-	
+
 	for s in sheet.sheets:
 		var title:String = s.properties.title
 		if(s.properties.has("hidden") || title.begins_with("_")):
@@ -244,17 +244,33 @@ func get_all_sheet_values(sheet_id: String):
 		return
 
 	for s in range(sheets_data.valueRanges.size()):
+		var addition_method = "ROWS"
 		var sheet_data = sheets_data.valueRanges[s]
 		var title = cell_range[s].replace(" ","_")
 		var field_names = null
+		var field_types = null
 		if(sheet_data.has("values") == false):
+			#empty sheet
 			continue
 		for row in sheet_data.values:
 			if(row.size() == 0):
+				#empty line
 				continue
 			if(row[0] == "FIELD_NAMES"):
 				row.pop_front()
-				field_names = PoolStringArray(row)
+				if(row.size() > 0):
+					field_names = PoolStringArray(row)
+				else:
+					field_names = null
+					field_types = null
+			elif(row[0] == "FIELD_TYPES"):
+				row.pop_front()
+				if(row.size() > 0):
+					field_types = []
+					for i in range(row.size()):
+						field_types.append(str2var(row[i]))
+				else:
+					field_types = null
 			elif(row[0] == "IGNORE"):
 				continue
 			elif(row[0] == "SUBSHEET" and row.size()>1):
@@ -263,12 +279,20 @@ func get_all_sheet_values(sheet_id: String):
 					data[row[1]] = {}
 			else:
 				if(field_names == null):
-					continue
-				data[title][row[0]] = {}
-				for i in range(1,row.size()):
-					if(row[i] == "TRUE" || row[i] == "FALSE"):
-						row[i] = row[i].to_lower()
-					data[title][row[0]][field_names[i-1]] = str2var(row[i])
+					var key_name = row.pop_front()
+					data[title][key_name] = []
+					for i in range(row.size()):
+						if(row[i] == "TRUE" || row[i] == "FALSE"):
+							row[i] = row[i].to_lower()
+						print("TEST: ",str2var(row[i]))
+						data[title][key_name].append(row[i])
+				else:
+					data[title][row[0]] = {}
+					for i in range(1,row.size()):
+						if(row[i] == "TRUE" || row[i] == "FALSE"):
+							row[i] = row[i].to_lower()
+						data[title][row[0]][field_names[i-1]] = row[i]
+		print(field_types)
 
 
 	var filename = __dirname+"/singletons/"+sheet.properties.title.replace(" ","_")+".tscn"
@@ -277,8 +301,9 @@ func get_all_sheet_values(sheet_id: String):
 	sheets = [[sheet.properties.title,sheet_id]]
 	config.set_value("user_data","sheets",sheets)
 	config.save(config_path)
+	emit_signal("log_msg", JSON.print(data,"\t"))
 	emit_signal("log_msg","File saved to: "+filename)
-	emit_signal("sheet_loaded")
+	emit_signal("sheet_loaded",filename)
 	return data
 
 func save_node_from_dict(filename, dict):
@@ -304,12 +329,12 @@ func _ready():
 		return
 	set_process(false)
 	connect("auth_code_granted",self,"handle_auth_code")
-	
+
 	#it's dumb that I can't get the relative path of this script
-	
+
 	if(html_file.open(__dirname+"/success.html",File.READ) != OK):
 		print("failed to load success.html")
-	
+
 	if(config.load(config_path) == OK):
 		# save what sheets we've selected
 		if(config.has_section_key("user_data","sheets") == false):
