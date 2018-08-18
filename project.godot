@@ -28,10 +28,6 @@ Copy_of_preaching_themes_data_export="*res://addons/godot_sheets/singletons/Copy
 window/size/width=128
 window/size/height=128
 
-[editor_plugins]
-
-enabled=PoolStringArray( "godot_sheets" )
-
 [input]
 
 ui_accept={
