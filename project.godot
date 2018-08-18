@@ -9,6 +9,9 @@
 config_version=4
 
 _global_script_classes=[  ]
+_global_script_class_icons={
+
+}
 
 [application]
 
@@ -17,12 +20,17 @@ config/icon="res://icon.png"
 
 [autoload]
 
-entry="*res://addons/godot_sheets/entry.gd"
+Hoopla="*res://addons/godot_sheets/singletons/Hoopla.tscn"
+Copy_of_preaching_themes_data_export="*res://addons/godot_sheets/singletons/Copy_of_preaching_themes_data_export.tscn"
 
 [display]
 
 window/size/width=128
 window/size/height=128
+
+[editor_plugins]
+
+enabled=PoolStringArray( "godot_sheets" )
 
 [input]
 

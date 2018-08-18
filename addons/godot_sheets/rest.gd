@@ -7,9 +7,11 @@ func parse_header(request):
 	#parse first request line 
 	var line_split = lines[0].split(" ",true)
 	
+	
+	
 	requestLine["verb"] = line_split[0]
 	
-	if(requestLine["verb"]=="HTTP/1.1"):
+	if(line_split.size() == 1 or requestLine["verb"]=="HTTP/1.1"):
 		return -2
 		
 	requestLine["url"] = line_split[1]
@@ -36,7 +38,7 @@ func parse_header(request):
 
 func decode(string: String):
 	var new_string = string.percent_decode()
-	new_string = new_string.substr(0,new_string.length()-1)
+	#new_string = new_string.substr(0,new_string.length()-1)
 	return new_string
 
 func parse_query_string(query):
@@ -92,5 +94,7 @@ func get_header(connection):
 		request += connection.get_data(1)[1].get_string_from_utf8()
 	var og_header = request
 	request = parse_header(request)
+	if(typeof(request) != TYPE_DICTIONARY):
+		return null
 	request.original_header = og_header
 	return request

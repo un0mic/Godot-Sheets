@@ -55,7 +55,6 @@ func request_auth_code():
 		"code_challenge":code_verifier,
 		"prompt":"consent"
 	})
-	server.listen(8000)
 	set_process(true)
 	OS.shell_open("https://accounts.google.com/o/oauth2/v2/auth?" + query)
 	emit_signal("log_msg","Auth Code Requested")
@@ -248,7 +247,7 @@ func get_all_sheet_values(sheet_id: String):
 		var sheet_data = sheets_data.valueRanges[s]
 		var title = cell_range[s].replace(" ","_")
 		var field_names = null
-		var field_types = null
+		
 		if(sheet_data.has("values") == false):
 			#empty sheet
 			continue
@@ -256,43 +255,54 @@ func get_all_sheet_values(sheet_id: String):
 			if(row.size() == 0):
 				#empty line
 				continue
-			if(row[0] == "FIELD_NAMES"):
+			var command = row[0].split(":")
+			if(command[0] == "FIELD_NAMES"):
 				row.pop_front()
-				if(row.size() > 0):
+				if(command.size() == 2 and (command[1] == "ROWS" or command[1] == "COLS")):
+					addition_method = command[1]
+				else:
+					addition_method == "ROWS"
+				
+				if(addition_method == "ROWS"):
+					if(row.size() > 0):
+						field_names = PoolStringArray(row)
+					else:
+						field_names = null
+				else:
 					field_names = PoolStringArray(row)
-				else:
-					field_names = null
-					field_types = null
-			elif(row[0] == "FIELD_TYPES"):
-				row.pop_front()
-				if(row.size() > 0):
-					field_types = []
 					for i in range(row.size()):
-						field_types.append(str2var(row[i]))
-				else:
-					field_types = null
-			elif(row[0] == "IGNORE"):
+						if(data[title].has(row[i]) == false):
+							data[title][row[i]] = {}
+					
+			elif(command[0] == "IGNORE"):
 				continue
-			elif(row[0] == "SUBSHEET" and row.size()>1):
-				title = row[1]
-				if(data.has(row[1]) == false):
-					data[row[1]] = {}
+			elif(command[0] == "SUBSHEET"):
+				title = command[1]
+				if(data.has(title) == false):
+					data[title] = {}
 			else:
-				if(field_names == null):
-					var key_name = row.pop_front()
-					data[title][key_name] = []
-					for i in range(row.size()):
-						if(row[i] == "TRUE" || row[i] == "FALSE"):
-							row[i] = row[i].to_lower()
-						print("TEST: ",str2var(row[i]))
-						data[title][key_name].append(row[i])
+				if(addition_method == "ROWS"):
+					if(field_names == null):
+						var key_name = row.pop_front()
+						if(data[title].has(key_name) == false):
+							data[title][key_name] = []
+						for i in range(row.size()):
+							if(row[i] == "TRUE" || row[i] == "FALSE"):
+								row[i] = row[i].to_lower()
+							data[title][key_name].append(row[i])
+					else:
+						if(data[title].has(row[0]) == false):
+							data[title][row[0]] = {}
+						for i in range(1,row.size()):
+							if(row[i] == "TRUE" || row[i] == "FALSE"):
+								row[i] = row[i].to_lower()
+							data[title][row[0]][field_names[i-1]] = row[i]
 				else:
-					data[title][row[0]] = {}
 					for i in range(1,row.size()):
 						if(row[i] == "TRUE" || row[i] == "FALSE"):
 							row[i] = row[i].to_lower()
-						data[title][row[0]][field_names[i-1]] = row[i]
-		print(field_types)
+						data[title][field_names[i-1]][row[0]] = row[i]
+		
 
 
 	var filename = __dirname+"/singletons/"+sheet.properties.title.replace(" ","_")+".tscn"
@@ -301,7 +311,7 @@ func get_all_sheet_values(sheet_id: String):
 	sheets = [[sheet.properties.title,sheet_id]]
 	config.set_value("user_data","sheets",sheets)
 	config.save(config_path)
-	emit_signal("log_msg", JSON.print(data,"\t"))
+	#emit_signal("log_msg", JSON.print(data,"\t"))
 	emit_signal("log_msg","File saved to: "+filename)
 	emit_signal("sheet_loaded",filename)
 	return data
@@ -328,6 +338,7 @@ func _ready():
 	if(enabled == false):
 		return
 	set_process(false)
+	server.listen(8000)
 	connect("auth_code_granted",self,"handle_auth_code")
 
 	#it's dumb that I can't get the relative path of this script
@@ -353,8 +364,9 @@ func _process(delta):
 	if(server.is_connection_available()):
 		var connection = server.take_connection()
 		var request = rest.get_header(connection)
-
-		if(request.params.has("code")):
+		
+		
+		if(request and request.params.has("code")):
 			auth_code = request.params["code"]
 			rest.response(200,{
 				"content-type":"text/html; charset=utf-8"

@@ -27,8 +27,9 @@ func _ready():
 func handle_log(message):
 	if(enabled == false):
 		return
-	var Log = $WindowDialog/padding/content/main/Errors/Log
+	var Log = $WindowDialog/padding/content/main/Errors/Log as TextEdit
 	Log.text += "\r\n"+message
+
 
 func auth_code_granted(code):
 	if(enabled == false):
